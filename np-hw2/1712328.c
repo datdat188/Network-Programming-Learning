@@ -297,7 +297,7 @@ int main(int argc, char* argv[])
     // /*
 	//  Your proxy server must filter based on domain name (or IP address) prefixes/suffixes as described above. All command-line arguments following the port number are domain or IP address prefixes/suffixes that must be filtered. There can be zero or more of these; and there is no limit to the number of arguments.
 	//  */
-	
+	// memory leak
 	filtersCount = malloc(sizeof(unsigned int));
 	*filtersCount = 0;
 	
@@ -543,8 +543,6 @@ HTTPRequest processRequest(char *requestString, int *error)
 
 		// Advance the parse pointer to the end of the line, and after the delimiter.
 		parse = next + strlen(delimiter);
-
-		printf("Count %d: \n%s", HTTPRequestHeaderFieldsCount, parse);
 		
 		// Stop when at the end of the header.
 		if ( line == NULL ) {
