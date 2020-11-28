@@ -298,16 +298,16 @@ int main(int argc, char* argv[])
 	//  Your proxy server must filter based on domain name (or IP address) prefixes/suffixes as described above. All command-line arguments following the port number are domain or IP address prefixes/suffixes that must be filtered. There can be zero or more of these; and there is no limit to the number of arguments.
 	//  */
 	
-	// filtersCount = malloc(sizeof(unsigned int));
-	// *filtersCount = 0;
+	filtersCount = malloc(sizeof(unsigned int));
+	*filtersCount = 0;
 	
-	// // Contains at least one filter.
-	// if ( argc > START_INDEX_FILTERS ) {
-	// 	// Filters are START_INDEX_FILTERS less than the number of arguments to the program.
-	// 	*filtersCount = argc - START_INDEX_FILTERS;
-	// 	// Create a pointer to the start of the filters in argv.
-	// 	filters = &argv[START_INDEX_FILTERS];
-	// }
+	// Contains at least one filter.
+	if ( argc > START_INDEX_FILTERS ) {
+		// Filters are START_INDEX_FILTERS less than the number of arguments to the program.
+		*filtersCount = argc - START_INDEX_FILTERS;
+		// Create a pointer to the start of the filters in argv.
+		filters = &argv[START_INDEX_FILTERS];
+	}
     
     // set all 0 for memory buffer
     bzero((char*)&servaddr,sizeof(servaddr));
@@ -537,13 +537,14 @@ HTTPRequest processRequest(char *requestString, int *error)
 		
 		// Find the end of the line.
 		char *next = strstr(parse, delimiter);
-		printf("Count %d: \n%s", HTTPRequestHeaderFieldsCount, next);
-		
+
 		// Get just the line.
 		char *line = substring(parse, next);
-		
+
 		// Advance the parse pointer to the end of the line, and after the delimiter.
 		parse = next + strlen(delimiter);
+
+		printf("Count %d: \n%s", HTTPRequestHeaderFieldsCount, parse);
 		
 		// Stop when at the end of the header.
 		if ( line == NULL ) {
@@ -597,7 +598,7 @@ HTTPRequest processRequest(char *requestString, int *error)
 				return NULL;
 			}
 			
-		} else {
+		} else { // Handle another request
 			// In the format of: "Field Name: Value"
 			
 			// Split the line into field name and value.
@@ -700,14 +701,7 @@ bool sendHTTPStatusToSocket(int status, int client)
 	}
 	
 	// Send the status.
-	ssize_t send_n = send(client, status_str, strlen(status_str), 0);
-	
-	
-	// Check for errors in send.
-	if ( send_n < strlen(status_str) ) {
-		perror("send()");
-		return false;
-	}
+	Send(client, status_str, strlen(status_str), 0);
 	
 	// The string is no longer needed.
 	free(status_str);
