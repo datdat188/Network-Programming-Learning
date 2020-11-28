@@ -1,24 +1,31 @@
-#include<stdio.h>
-#include<stdlib.h>
+#include    <limits.h>
+#include    <sys/errno.h>
+#include    <sys/select.h>
 
-#include<limits.h>
-#include<unistd.h>
-#include<string.h>
+#include	<sys/types.h>	/* basic system data types */
+#include	<sys/socket.h>	/* basic socket definitions */
+#include	<sys/time.h>	/* timeval{} for select() */
+#include	<time.h>		/* timespec{} for pselect() */
+#include	<netinet/in.h>	/* sockaddr_in{} and other Internet defns */
+#include	<arpa/inet.h>	/* inet(3) functions */
+#include	<errno.h>
+#include	<fcntl.h>		/* for nonblocking */
+#include	<netdb.h>
+#include	<signal.h>
+#include	<stdio.h>
+#include	<stdlib.h>
+#include	<string.h>
+#include	<sys/stat.h>	/* for S_xxx file mode constants */
+#include	<sys/uio.h>		/* for iovec{} and readv/writev */
+#include	<unistd.h>
+#include	<sys/wait.h>
+#include	<sys/un.h>		/* for Unix domain sockets */
 
-#include<arpa/inet.h>
-#include<netinet/in.h>
+#include "HTTP.h"
+#include "StringFunctions.h"
 
-#include<sys/types.h>
-#include<sys/socket.h>
-#include<sys/errno.h>
-#include<sys/select.h>
-#include<netdb.h>
-#include<errno.h>
-
-extern int errno;
-extern unsigned int *filtersCount;
-extern const char **filters;
-
+#define	SA	struct sockaddr
+#define	LISTENQ		1024	/* 2nd argument to listen() */
 // Another source
 #define BUFFER_SIZE 2048
 
@@ -26,26 +33,224 @@ extern const char **filters;
 #define MAX_THREADS 128
 
 #define START_INDEX_FILTERS 2 
-//===========================
 
+//=============================VARIABLE DECLARE====================
+typedef	void	Sigfunc(int);
+/// A structure to hold a file descriptor and a message.
+typedef struct {
+	/// Socket/File Descriptor.
+	int sock;
+	
+	/// The address in the communications space of the socket.
+	struct sockaddr_in address;
+	
+	/// Message sent by fd.
+	char *msg;
+} sock_msg;
+
+int errno;
+unsigned int *filtersCount;
+const char **filters;
+
+/// The total number of successful requests.
+unsigned int *numberOfSuccessfulRequests;
+/// The total number of filtered requests.
+unsigned int *numberOfFilteredRequests;
+/// The total number of errored requests.
+unsigned int *numberOfErroredRequests;
+
+//===========================UTILS FUNCTION===========================
 void error(char* msg)
 {
     perror(msg);
     exit(0);
 }
 
+//==========================UNPV13E LIB FUNCTION======================
+/* include Socket */
+int
+Socket(int family, int type, int protocol)
+{
+	int		n;
+
+	if ( (n = socket(family, type, protocol)) < 0)
+		error("socket error");
+	return(n);
+}
+/* end Socket */
+
+void
+Bind(int fd, const struct sockaddr *sa, socklen_t salen)
+{
+	if (bind(fd, sa, salen) < 0)
+		error("bind error");
+}
+
+/* include Listen */
+void
+Listen(int fd, int backlog)
+{
+	char	*ptr;
+
+		/*4can override 2nd argument with environment variable */
+	if ( (ptr = getenv("LISTENQ")) != NULL)
+		backlog = atoi(ptr);
+
+	if (listen(fd, backlog) < 0)
+		error("listen error");
+}
+/* end Listen */
+
+int
+Accept(int fd, struct sockaddr *sa, socklen_t *salenptr)
+{
+	int		n;
+
+again:
+	if ( (n = accept(fd, sa, salenptr)) < 0) {
+#ifdef	EPROTO
+		if (errno == EPROTO || errno == ECONNABORTED)
+#else
+		if (errno == ECONNABORTED)
+#endif
+			goto again;
+		else
+			error("accept error");
+	}
+	return(n);
+}
+
+void
+Connect(int fd, const struct sockaddr *sa, socklen_t salen)
+{
+	if (connect(fd, sa, salen) < 0)
+		error("connect error");
+}
+
+ssize_t
+Recv(int fd, void *ptr, size_t nbytes, int flags)
+{
+	ssize_t		n;
+
+	if ( (n = recv(fd, ptr, nbytes, flags)) < 0)
+		error("recv error");
+	return(n);
+}
+
+void
+Send(int fd, const void *ptr, size_t nbytes, int flags)
+{
+	if (send(fd, ptr, nbytes, flags) != (ssize_t)nbytes)
+		error("send error");
+}
+
+void
+Close(int fd)
+{
+	if (close(fd) == -1)
+		error("close error");
+}
+
+pid_t
+Fork(void)
+{
+	pid_t	pid;
+
+	if ( (pid = fork()) == -1)
+		error("fork error");
+	return(pid);
+}
+
+Sigfunc *
+Signal(int signo, Sigfunc *func)	/* for our signal() function */
+{
+	Sigfunc	*sigfunc;
+
+	if ( (sigfunc = signal(signo, func)) == SIG_ERR)
+		error("signal error");
+	return(sigfunc);
+}
+
+void 
+//======================================SIGNAL FUNCTION=====================
+sigintHandler(int sig_num)
+{
+	/* Reset handler to catch SIGINT next time. 
+       Refer http://en.cppreference.com/w/c/program/signal */
+	Signal(SIGINT, sigintHandler);
+	fflush(stdout);
+}
+
+void
+sig_chld(int signo)
+{
+	pid_t	pid;
+	int		stat;
+
+	while ( (pid = waitpid(-1, &stat, WNOHANG)) > 0) {
+		printf("child %d terminated\n", pid);
+	}
+	return;
+}
+void handleSIGUSR1()
+{
+	// Received signal.
+	printf("Received SIGUSR1...reporting status:\n");
+	
+	// Report the number of requests.
+	if ( *numberOfSuccessfulRequests == 1 ) {
+		printf("-- Processed %u request successfully.\n", *numberOfSuccessfulRequests);
+	} else {
+		printf("-- Processed %u requests successfully.\n", *numberOfSuccessfulRequests);
+	}
+	
+	// Report the filters being used.
+	printf("-- Filtering:");
+	for ( unsigned int i=0; i<*filtersCount; ++i ) {
+		printf(" %s;", filters[i]);
+	}
+	printf("\n");
+	
+	// Report the number of filtered requests.
+	if ( *numberOfFilteredRequests == 1 ) {
+		printf("-- Filtered %u request.\n", *numberOfFilteredRequests);
+	} else {
+		printf("-- Filtered %u requests.\n", *numberOfFilteredRequests);
+	}
+	
+	// Report the number of requests that resulted in errors.
+	if ( *numberOfErroredRequests == 1 ) {
+		printf("-- Encountered %u request in error\n", *numberOfErroredRequests);
+	} else {
+		printf("-- Encountered %u requests in error\n", *numberOfErroredRequests);
+	}
+}
+
+void handleSIGUSR2()
+{
+	printf("Received SIGUSR2...");
+	exit(1);
+}
+
+//=====================================================================
+
 int main(int argc, char* argv[])
 {
     pid_t pid;
     struct sockaddr_in addr_in,cli_addr,serv_addr;
     struct hostent* host;
-    int sockfd,newsockfd;
+
+    int					listenfd, connfd;
+	pid_t				childpid;
+	socklen_t			clilen;
+	struct sockaddr_in	cliaddr, servaddr;
+	void				sig_chld(int);
     
     if(argc<2)
         error("./1712328 <port>");
 
     // The port number to use for the socket.
-	unsigned short port = 8127; // The default port is 8127 (if no arguments are given).
+	unsigned short port = 8888; // The default port is 8127 (if no arguments are given).
 	if ( argc > 1 ) {
 		int conversion = atoi(argv[1]);
 		// Cannot convert int to unsigned short.
@@ -72,155 +277,73 @@ int main(int argc, char* argv[])
 	// }
     
     // set all 0 for memory buffer
-    bzero((char*)&serv_addr,sizeof(serv_addr));
-    bzero((char*)&cli_addr, sizeof(cli_addr));
+    bzero((char*)&servaddr,sizeof(servaddr));
+    bzero((char*)&cliaddr, sizeof(cliaddr));
     
     // Create the server
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(atoi(argv[1]));
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    servaddr.sin_family      = AF_INET;
+	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	servaddr.sin_port        = htons(atoi(argv[1]));
     
     // Create the listener 
-    sockfd = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
-    if (sockfd<0)
-        error("socket()");
+    listenfd = Socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     
     // Bind
-    if (bind(sockfd,(struct sockaddr*)&serv_addr,sizeof(serv_addr))<0)
-        error("bind()");
+    Bind(listenfd, (SA *) &servaddr,sizeof(servaddr));
  
     // Number of maximum accept client
-    listen(sockfd,50);
-    socklen_t clilen = sizeof(cli_addr);
+    Listen(listenfd, LISTENQ);
     printf("Listener socket created and bound to port %d\n", port);
+    
+    Signal(SIGCHLD, sig_chld);
+    Signal(SIGINT, sigintHandler);
+    Signal(SIGUSR1, &handleSIGUSR1);
+	Signal(SIGUSR2, &handleSIGUSR2);
 
-    while (1)
-    {
-        // Accept client connection
-        newsockfd=accept(sockfd,(struct sockaddr*)&cli_addr,&clilen);
-        if (newsockfd<0)
-            error("Problem in accepting connection");
-        
-        pid = fork(); // Use fork to create child process
-        if(pid == 0)
-        {
-            struct sockaddr_in host_addr;
-            char buffer[BUFFER_SIZE]; // Packet size
-
-            int flag = 0,newsockfd1,n,port = 0,i,sockfd1;
-            char t1[300],t2[300],t3[10];
-            char* temp=NULL;
+    for ( ; ; ) {
+        clilen = sizeof(cliaddr);
+		if ( (connfd = accept(listenfd, (SA *) &cliaddr, &clilen)) < 0) {
+			if (errno == EINTR)
+				continue;		/* back to for() */
+			else
+				error("accept error");
+		}
+        if ( (childpid = Fork()) == 0) {	/* child process */
+			Close(listenfd);	/* close listening socket */
+			char buffer[BUFFER_SIZE]; // Packet size
 
             // Receive the message.
             bzero((char*)buffer,BUFFER_SIZE);
-            ssize_t n = recv(newsockfd,buffer,BUFFER_SIZE - 1,0);
-            if ( n <= 0 ) {
-                // Errored.
-                perror("recv()");
-                continue;
-            }
-            else {
-                // Stream received message.
-                buffer[n] = '\0';
-            }
-            
-            sscanf(buffer,"%s %s %s",t1,t2,t3);
-            
-            if(((strncmp(t1,"GET",3) == 0))
-                &&((strncmp(t3,"HTTP/1.1",8) == 0)
-                ||(strncmp(t3,"HTTP/1.0",8) == 0))
-                &&(strncmp(t2,"http://",7) ==0 ))
-            {
-                strcpy(t1,t2);
-    
-                flag=0;
-                
-                for(i = 7; i<strlen(t2); i++)
-                {
-                    if(t2[i]==':')
-                    {
-                        flag=1;
-                        break;
-                    }
-                }
-    
-                temp=strtok(t2,"//");
-                if(flag == 0)
-                {
-                    port=80;
-                    temp=strtok(NULL,"/");
-                }
-                else
-                {
-                    temp=strtok(NULL,":");
-                }
-                
-                sprintf(t2,"%s",temp);
-                printf("host = %s",t2);
-                host = gethostbyname(t2);
-    
-                if(flag == 1)
-                {
-                    temp = strtok(NULL,"/");
-                    port = atoi(temp);
-                }
-    
-    
-                strcat(t1,"^]");
-                temp = strtok(t1,"//");
-                temp = strtok(NULL,"/");
-                if(temp != NULL)
-                temp = strtok(NULL,"^]");
-                printf("\npath = %s\nPort = %d\n",temp,port);
-                
-    
-                bzero((char*)&host_addr,sizeof(host_addr));
-                host_addr.sin_port=htons(port);
-                host_addr.sin_family=AF_INET;
-                bcopy((char*)host->h_addr,(char*)&host_addr.sin_addr.s_addr,host->h_length);
-                
-                sockfd1=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
-                newsockfd1=connect(sockfd1,(struct sockaddr*)&host_addr,sizeof(struct sockaddr));
-                sprintf(buffer,"\nConnected to %s  IP - %s\n",t2,inet_ntoa(host_addr.sin_addr));
-                if(newsockfd1<0)
-                    error("Error in connecting to remote server");
-    
-                printf("\n%s\n",buffer);
-                //send(newsockfd,buffer,strlen(buffer),0);
-                bzero((char*)buffer,sizeof(buffer));
-                if(temp!=NULL)
-                    sprintf(buffer,"GET /%s %s\r\nHost: %s\r\nConnection: close\r\n\r\n",temp,t3,t2);
-                else
-                    printf(buffer,"GET / %s\r\nHost: %s\r\nConnection: close\r\n\r\n",t3,t2);
+			ssize_t n = recv(connfd, buffer, BUFFER_SIZE - 1, 0);
+			// Stream has errored or ended.
+			if (n <= 0)
+			{
+				// Errored.
+				perror("recv()");
+				continue;
+			}
+			else
+			{
+				// Stream received message.
+				buffer[n] = '\0';
+#ifdef DEBUG
+				//printf("Received message from fd %d: %s\n", fd, buffer);
+#endif
+			}
+        /* 
+		 6. Your server does must be a concurrent server (i.e. do not use an iterative server).
+		 */
 
-
-                n=send(sockfd1,buffer,strlen(buffer),0);
-                printf("\n%s\n",buffer);
-                if(n<0)
-                    error("Error writing to socket");
-                else{
-                    do
-                    {
-                        bzero((char*)buffer,500);
-                        n=recv(sockfd1,buffer,500,0);
-                        if(!(n<=0))
-                        send(newsockfd,buffer,n,0);
-                    }while(n>0);
-                }
-            }
-            else
-            {
-                send(newsockfd,"400 : BAD REQUEST\nONLY HTTP REQUESTS ALLOWED",18,0);
-            }
-                close(sockfd1);
-                close(newsockfd);
-                close(sockfd);
-                _exit(0);
-            }
-        else
-        {
-            close(newsockfd);
-        }
+			// Create a thread to handle message.
+			sock_msg *arg = malloc(sizeof(sock_msg));
+			arg->sock = connfd;
+			arg->address = servaddr;
+			arg->msg = stringDuplicate(buffer);
+			//handleRequest(arg);
+            exit(0);
+		}
+		Close(connfd);
     }
-    return 0;
+    
+    return EXIT_SUCCESS;
 }
