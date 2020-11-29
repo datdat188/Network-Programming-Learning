@@ -411,6 +411,7 @@ void *handleRequest(void *argument)
 	} else {
 		// Print Request Line.
 		printf("%s: %s\n", ip_addr, request[HTTPRequestHeaderField_Request_Line]);
+		sendHTTPStatusToSocket(302, fd);
 	}
 	
 	/*
