@@ -46,6 +46,9 @@ typedef struct {
 	
 	/// Message sent by fd.
 	char *msg;
+
+	/// Number of argument
+	int argc;
 } sock_msg;
 
 int errno;
@@ -53,11 +56,11 @@ unsigned int *filtersCount;
 const char **filters;
 
 /// The total number of successful requests.
-unsigned int *numberOfSuccessfulRequests;
+static unsigned int numberOfSuccessfulRequests = 0;
 /// The total number of filtered requests.
-unsigned int *numberOfFilteredRequests;
+static unsigned int numberOfFilteredRequests = 0;
 /// The total number of errored requests.
-unsigned int *numberOfErroredRequests;
+static unsigned int numberOfErroredRequests = 0;
 
 //===============================================
 void incrementNumberOfSuccessfulRequests();
@@ -194,19 +197,22 @@ sig_chld(int signo)
 
 	while ( (pid = waitpid(-1, &stat, WNOHANG)) > 0) {
 		printf("child %d terminated\n", pid);
+		numberOfSuccessfulRequests++;
 	}
 	return;
 }
-void handleSIGUSR1()
+
+void
+handleSIGUSR1()
 {
 	// Received signal.
 	printf("Received SIGUSR1...reporting status:\n");
 	
 	// Report the number of requests.
-	if ( *numberOfSuccessfulRequests == 1 ) {
-		printf("-- Processed %u request successfully.\n", *numberOfSuccessfulRequests);
+	if ( numberOfSuccessfulRequests == 1 ) {
+		printf("-- Processed %u request successfully.\n", numberOfSuccessfulRequests);
 	} else {
-		printf("-- Processed %u requests successfully.\n", *numberOfSuccessfulRequests);
+		printf("-- Processed %u requests successfully.\n", numberOfSuccessfulRequests);
 	}
 	
 	// Report the filters being used.
@@ -217,17 +223,17 @@ void handleSIGUSR1()
 	printf("\n");
 	
 	// Report the number of filtered requests.
-	if ( *numberOfFilteredRequests == 1 ) {
-		printf("-- Filtered %u request.\n", *numberOfFilteredRequests);
+	if ( numberOfFilteredRequests == 1 ) {
+		printf("-- Filtered %u request.\n", numberOfFilteredRequests);
 	} else {
-		printf("-- Filtered %u requests.\n", *numberOfFilteredRequests);
+		printf("-- Filtered %u requests.\n", numberOfFilteredRequests);
 	}
 	
 	// Report the number of requests that resulted in errors.
-	if ( *numberOfErroredRequests == 1 ) {
-		printf("-- Encountered %u request in error\n", *numberOfErroredRequests);
+	if ( numberOfErroredRequests == 1 ) {
+		printf("-- Encountered %u request in error\n", numberOfErroredRequests);
 	} else {
-		printf("-- Encountered %u requests in error\n", *numberOfErroredRequests);
+		printf("-- Encountered %u requests in error\n", numberOfErroredRequests);
 	}
 }
 
@@ -361,6 +367,7 @@ int main(int argc, char* argv[])
 			arg->sock = connfd;
 			arg->address = servaddr;
 			arg->msg = stringDuplicate(buffer);
+			arg->argc = argc;
 			handleRequest(arg);
             exit(0);
 		}
@@ -377,6 +384,7 @@ void *handleRequest(void *argument)
 	int fd = arg->sock;
 	struct sockaddr_in client = arg->address;
 	char *requestString = arg->msg;
+	int numberOfArgument = arg->argc;
 	// Process the request string into a HTTPRequest.
 	int error = 0;
 	HTTPRequest request = processRequest(requestString, &error);
@@ -385,8 +393,8 @@ void *handleRequest(void *argument)
 		sendHTTPStatusToSocket(error, fd);
 		
 		// Increment number of (purposefully) errored requests.
-		incrementNumberOfErroredRequests();
-		
+		//incrementNumberOfErroredRequests();
+		numberOfErroredRequests++;
 		goto end;
 	}
 	
@@ -406,23 +414,21 @@ void *handleRequest(void *argument)
 		sendHTTPStatusToSocket(403, fd);
 		
 		// Increment filtered requests counter.
-		incrementNumberOfFilteredRequests();
+		//incrementNumberOfFilteredRequests();
+		numberOfFilteredRequests++;
 		goto end;
-	} else {
-		// Print Request Line.
+	}
+	else{
 		printf("%s: %s\n", ip_addr, request[HTTPRequestHeaderField_Request_Line]);
-		sendHTTPStatusToSocket(302, fd);
+		if (numberOfArgument > START_INDEX_FILTERS)
+			sendHTTPStatusToSocket(301, fd);
 	}
 	
 	/*
 	 Your server must forward the appropriate HTTP request headers to the requested server, then send the responses back to the client.
 	 */
 	
-	int serverSocket = socket(PF_INET, SOCK_STREAM, 0);
-	if ( serverSocket < 0 ) {
-		perror("socket()");
-		goto end;
-	}
+	int serverSocket = Socket(PF_INET, SOCK_STREAM, 0);
 	
 	// Server
 	struct sockaddr_in server;
@@ -440,10 +446,7 @@ void *handleRequest(void *argument)
 	server.sin_port = htons(port);
 	
 	// Connect.
-	if ( connect(serverSocket, (struct sockaddr *)&server, sizeof(server) ) < 0 ) {
-		perror("connect()");
-		goto end;
-	}
+	Connect(serverSocket, (struct sockaddr *)&server, sizeof(server));
 	
 	// Strip out Accept-Encoding to prevent chunking (not yet supported).
 	char *accept_encoding = request[HTTPRequestHeaderField_Accept_Encoding];
@@ -459,11 +462,7 @@ void *handleRequest(void *argument)
 	}
 	
 	// Send.
-	ssize_t send_n = send(serverSocket, serverRequestString, strlen(serverRequestString), 0);
-	if ( send_n < strlen(serverRequestString) ) {
-		perror("send()");
-		goto end;
-	}
+	Send(serverSocket, serverRequestString, strlen(serverRequestString), 0);
 	
 	// Buffer to load received messages into.
 	char buffer[BUFFER_SIZE];
@@ -471,33 +470,25 @@ void *handleRequest(void *argument)
 	// Receive.
 	while (1) {
 		// BLOCK
-		ssize_t received_n = recv(serverSocket, buffer, BUFFER_SIZE - 1, 0);
+		ssize_t received_n = Recv(serverSocket, buffer, BUFFER_SIZE - 1, 0);
 		if ( received_n == 0 ) {
 			// Peer has closed its half side of the (TCP) connection.
 			break;
-		} else if ( received_n < 0 ) {
-			// Error.
-			perror("recv()");
-			goto end;
-		} else {
-			// End the buffer with a null-terminator.
-			buffer[received_n] = '\0';
+		} 
+		// End the buffer with a null-terminator.
+		buffer[received_n] = '\0';
 			
 #ifdef DEBUG
 			// Print out the received message.
 			//printf("\n\nReceived message from %s:\n%s\n\n", inet_ntoa((struct in_addr)server.sin_addr), buffer);
 #endif
 			
-			ssize_t send_client_n = send(fd, buffer, strlen(buffer), 0);
-			if ( send_client_n < strlen(buffer) ) {
-				perror("send()");
-				goto end;
-			}
-		}
+		Send(fd, buffer, strlen(buffer), 0);
 	}
 	
 	// Increment number of successful requests.
-	incrementNumberOfSuccessfulRequests();
+	//incrementNumberOfSuccessfulRequests();
+	numberOfSuccessfulRequests++;
 		
 end:
 	
@@ -509,16 +500,13 @@ end:
 		free(serverRequestString);
 	}
 	
-	close(serverSocket);
+	Close(serverSocket);
 	
 	if ( request != NULL ) {
 		// Request is no longer needed.
 		HTTPRequestFree(request);
 	}
-	
-	// The socket is no longer needed.
-	close(fd);
-	
+
 	return NULL;
 }
 
@@ -711,15 +699,15 @@ bool sendHTTPStatusToSocket(int status, int client)
 
 void incrementNumberOfSuccessfulRequests()
 {
-	(*numberOfSuccessfulRequests)++;
+	numberOfSuccessfulRequests++;
 }
 
 void incrementNumberOfFilteredRequests()
 {
-	(*numberOfFilteredRequests)++;
+	numberOfFilteredRequests++;
 }
 
 void incrementNumberOfErroredRequests()
 {
-	(*numberOfErroredRequests)++;
+	numberOfErroredRequests++;
 }	
