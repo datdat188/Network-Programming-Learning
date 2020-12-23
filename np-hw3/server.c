@@ -13,22 +13,11 @@ https://github.com/ruchirsharma1993/Chat-application-in-c-using-Socket-programmi
 #include <string.h>
 #include <sys/types.h>
 
-#define BUFF 256
+#define BUFFER_MEMORY_REGULATIONS 256
+#define failedCase -1
+#define activeSession 1
 
-char *strrev(char *str)
-{
-      char *p1, *p2;
-
-      if (! str || ! *str)
-            return str;
-      for (p1 = str, p2 = str + strlen(str) - 1; p2 > p1; ++p1, --p2)
-      {
-            *p1 ^= *p2;
-            *p2 ^= *p1;
-            *p1 ^= *p2;
-      }
-      return str;
-}
+#define createSocketFailedCase "Socket creation failed"
 
 char *upcase(char *str)
 {
@@ -42,22 +31,30 @@ char *upcase(char *str)
 	return str;
 }
 
+void 
+handleError(const char* caseError){
+	//caseError = strcat("[#] Client: ",caseError);
+	perror(caseError);
+	exit(1);
+}
+
+int
+createSocket(){
+	return socket(AF_INET, SOCK_STREAM, 0);
+}
+
+
 int main()
 {
-	int fd = 0;
-	char buff[BUFF];
-	char nbuff[BUFF];
+	int fileDescriptor = 0;
+	char memoryBuffer[BUFFER_MEMORY_REGULATIONS];
+	char handleMemoryBuffer[BUFFER_MEMORY_REGULATIONS];
 	
-	//Setup Buffer Array
-	memset(buff, '0',sizeof(buff));	
+	memset(memoryBuffer, '0',sizeof(memoryBuffer));	
 
-	//Create Socket
-	fd = socket(AF_INET, SOCK_STREAM, 0);
-    	if(fd<0)
-	{
-		perror("Client Error: Socket not created succesfully");
-		return 0;
-	}
+	fileDescriptor = socket(AF_INET, SOCK_STREAM, 0);
+    if(fileDescriptor<0)
+		handleError(createSocketFailedCase);
 
 	//Structure to store details
 	struct sockaddr_in server; 
@@ -69,37 +66,32 @@ int main()
     server.sin_addr.s_addr = htonl(INADDR_ANY);
    
 
-	bind(fd, (struct sockaddr*)&server, sizeof(server)); 
+	bind(fileDescriptor, (struct sockaddr*)&server, sizeof(server)); 
+	printf ("Server running...\n");
 
 	int in;
 	
-	listen(fd, 10); 
-	while(	in = accept(fd, (struct sockaddr*)NULL, NULL))
+	listen(fileDescriptor, 10); 
+	while(	in = accept(fileDescriptor, (struct sockaddr*)NULL, NULL))
 	{		
 		int childpid,n;
-		if ( (childpid = fork ()) == 0 ) 
+		if ((childpid = fork ()) == 0) 
 		{
-		
-			//printf ("\nOne Client Connected !! ");
-		
-			//close listening socket
-			close (fd);
-		
-			//Clear Zeroes
-			bzero(buff,BUFF);
-			bzero(nbuff,BUFF);
+			printf ("\nClient connected\n");
+			close (fileDescriptor);
+	
+			bzero(memoryBuffer,BUFFER_MEMORY_REGULATIONS);
+			bzero(handleMemoryBuffer,BUFFER_MEMORY_REGULATIONS);
 							
-			while ( (n = recv(in, buff, BUFF,0)) > 0)  
+			while ((n = recv(in, memoryBuffer, BUFFER_MEMORY_REGULATIONS,0)) > 0)  
 			{
 			
-				printf("Server Received: %s",buff);
+				printf("Server Received: %s",memoryBuffer);
 				
-				char *nbuff = upcase(buff);
-				//printf("Server Sending: %s",strrev(buff));
-				//Send the reversed input
-				send(in, nbuff, strlen(nbuff), 0);
+				char *handleMemoryBuffer = upcase(memoryBuffer);
+				send(in, handleMemoryBuffer, strlen(handleMemoryBuffer), 0);
 		
-				bzero(buff,BUFF);
+				bzero(memoryBuffer,BUFFER_MEMORY_REGULATIONS);
 										
 			}
 			close(in);
@@ -109,17 +101,17 @@ int main()
 	/*	int inp;
 		printf("In is: %d",in);		
 		// Read server response 
-		bzero(buff,256);
-		inp = recv(in,buff,256,0);
+		bzero(memoryBuffer,256);
+		inp = recv(in,memoryBuffer,256,0);
 		if (inp < 0) 
 		{
 			perror("\nServer Error: Reading from Client");
 			return 0;
 		}
-		printf("Server Received: %s",buff);
+		printf("Server Received: %s",memoryBuffer);
 		printf("\nIn is: %d",in);
 		
-		inp = send(in,buff,strlen(buff),0);
+		inp = send(in,memoryBuffer,strlen(memoryBuffer),0);
 		    if (inp < 0) 
 		    {
 			 perror("\nServer Error: Writing to Server");
