@@ -4,85 +4,57 @@ https://github.com/ruchirsharma1993/Chat-application-in-c-using-Socket-programmi
 =======================================================
 */
 
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-
-#define BUFFER_MEMORY_REGULATIONS 256
-#define failedCase -1
-#define activeSession 1
-
-#define notEnoughAgrumentCase "Less no of arguments"
-#define createSocketFailedCase "Socket creation failed"
-#define ipInitializedFailedCase "IP not initialized failed"
-#define connectSocketFailedCase "Connection failed"
-#define sendMessageSocketFailedCase "Send socket failed"
-#define receiveMessageSocketFailedCase "Receive socket failed"
-
-void 
-handleError(const char* caseError){
-	//caseError = strcat("[#] Client: ",caseError);
-	perror(caseError);
-	exit(1);
-}
-
-int
-createSocket(){
-	return socket(AF_INET, SOCK_STREAM, 0);
-}
+#include "utils.h"
 
 int main(int argc, char *argv[])
 {
 	int fileDescriptor = 0;
-	char memoryBuffer[BUFFER_MEMORY_REGULATIONS];
-	
-	if(argc < 2)
-		handleError(notEnoughAgrumentCase);
+	char message[BUFFER_MEMORY_REGULATIONS];
 
-	memset(memoryBuffer, '0',sizeof(memoryBuffer));	
+	memset(message, '0',sizeof(message));	
 
 	fileDescriptor = createSocket();
     if(fileDescriptor <= failedCase)
 		handleError(createSocketFailedCase);
-	
-	//Structure to store details
+
 	struct sockaddr_in server; 
 	memset(&server, '0', sizeof(server)); 
 
-	//Initialize with argv[1] is port
 	server.sin_family = AF_INET;
-	server.sin_port =  htons(atoi(argv[1]));
+	server.sin_port =  htons(atoi(PORT_SERVER1));
+	server.sin_addr.s_addr = htonl(INADDR_ANY);
 
-	int in = inet_pton(AF_INET, "127.0.0.1", &server.sin_addr);
-	if(in <= failedCase)
-		handleError(ipInitializedFailedCase);
-
-	in = connect(fileDescriptor, (struct sockaddr *)&server, sizeof(server));
+	int in = connect(fileDescriptor, (struct sockaddr *)&server, sizeof(server));
 	if(in <= failedCase)
 		handleError(connectSocketFailedCase); 	
 
 	while(activeSession)
 	{
 		printf("\nPlease enter the message: ");
-    		bzero(memoryBuffer,BUFFER_MEMORY_REGULATIONS);
-    		fgets(memoryBuffer,BUFFER_MEMORY_REGULATIONS ,stdin);
+		bzero(message,BUFFER_MEMORY_REGULATIONS);
+    	fgets(message,BUFFER_MEMORY_REGULATIONS ,stdin);
     		
-		    printf("Sending to SERVER: %s ",memoryBuffer);
+		printf("Sending to SERVER: %s ",message);
 
-    		in = send(fileDescriptor,memoryBuffer,strlen(memoryBuffer),0);
-		    if (in <= failedCase) 
-		    	handleError(sendMessageSocketFailedCase);
+    	in = send(fileDescriptor,message,strlen(message),0);
+		if (in <= failedCase) 
+			handleError(sendMessageSocketFailedCase);
 
-		    bzero(memoryBuffer,BUFFER_MEMORY_REGULATIONS);
-		    in = recv(fileDescriptor,memoryBuffer,BUFFER_MEMORY_REGULATIONS,0);
-		    if (in <= failedCase) 
-				handleError(receiveMessageSocketFailedCase);
-		    
-			printf("\nReceived FROM SERVER: %s ",memoryBuffer);
+		if (endConversationWithServer(message))
+		{
+			printf("Closed connection");
+			close(fileDescriptor);
+			exit(0);
+		}
+
+		wait(WAIT_TIME);
+
+	    bzero(message,BUFFER_MEMORY_REGULATIONS);
+	    in = recv(fileDescriptor,message,BUFFER_MEMORY_REGULATIONS,0);
+		if (in <= failedCase) 
+			handleError(receiveMessageSocketFailedCase);
+	    
+		printf("\nReceived FROM SERVER: %s ",message);
 	}
 	close(fileDescriptor);
 	return 0;
