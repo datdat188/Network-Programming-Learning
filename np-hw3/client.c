@@ -21,10 +21,13 @@ int main(int argc, char *argv[])
 	memset(&server, '0', sizeof(server)); 
 
 	server.sin_family = AF_INET;
-	server.sin_port =  htons(atoi(PORT_SERVER1));
+	server.sin_port =  htons(PORT_SERVER);
 	server.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	int in = connect(fileDescriptor, (struct sockaddr *)&server, sizeof(server));
+
+	printf("Connected\n");
+
 	if(in <= failedCase)
 		handleError(connectSocketFailedCase); 	
 
@@ -32,9 +35,9 @@ int main(int argc, char *argv[])
 	{
 		printf("\nPlease enter the message: ");
 		bzero(message,BUFFER_MEMORY_REGULATIONS);
-    	fgets(message,BUFFER_MEMORY_REGULATIONS ,stdin);
+    	fgets(message,BUFFER_MEMORY_REGULATIONS,stdin);
     		
-		printf("Sending to SERVER: %s ",message);
+		printf("\nSending to SERVER1: %s ",message);
 
     	in = send(fileDescriptor,message,strlen(message),0);
 		if (in <= failedCase) 
@@ -54,7 +57,7 @@ int main(int argc, char *argv[])
 		if (in <= failedCase) 
 			handleError(receiveMessageSocketFailedCase);
 	    
-		printf("\nReceived FROM SERVER: %s ",message);
+		printf("\nReceived FROM SERVER1: %s ",message);
 	}
 	close(fileDescriptor);
 	return 0;

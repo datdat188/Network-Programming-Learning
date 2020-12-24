@@ -6,8 +6,6 @@ https://github.com/ruchirsharma1993/Chat-application-in-c-using-Socket-programmi
 
 #include "utils.h"
 
-
-
 int main()
 {
 	int fileDescriptor = 0;
@@ -33,14 +31,14 @@ int main()
 
 	//Initialize	
 	server.sin_family = AF_INET;
-	server.sin_port = htons(PORT_SERVER1); 
+	server.sin_port = htons(PORT_SERVER); 
     server.sin_addr.s_addr = htonl(INADDR_ANY);
    
+	printf ("Server running...\n");
 
 	if(bind(fileDescriptor, (struct sockaddr*)&server, sizeof(server)) <= failedCase)
 		handleError(bindSocketFailedCase);
 
-	printf ("Server running...\n");
 
 	int connectionWithClient;
 	
@@ -53,7 +51,7 @@ int main()
 		int childpid, resultAction;
 		if ((childpid = fork ()) == 0) 
 		{
-			printf ("\nClient connected\n");
+			printf ("Client connected\n");
 			close (fileDescriptor);
 	
 			bzero(message,BUFFER_MEMORY_REGULATIONS);
@@ -61,17 +59,16 @@ int main()
 							
 			while ((resultAction = recv(connectionWithClient, message, BUFFER_MEMORY_REGULATIONS,0)) > 0)  
 			{
-				printf("Server Received: %s",message);
-				
-				char *handlemessage = upcase(message);
-				send(connectionWithClient, handlemessage, strlen(handlemessage), 0);
-
+				printf("Received FROM CLIENT: %s",message);
 				lineMessageQueue.msg_type = 1;
 				bzero(&lineMessageQueue.mgs, BUFFER_MEMORY_REGULATIONS);
 				(void)strcpy(lineMessageQueue.mgs, message);
 				
+				char *handlemessage = upcase(message);
+				send(connectionWithClient, handlemessage, strlen(handlemessage), 0);
+
 				msgsnd(msgid, &lineMessageQueue, sizeof(lineMessageQueue), 0);
-				printf("Line in message queue 1: %s \n", lineMessageQueue.mgs);
+				printf("Line message queue, Send TO NETDCLIENT: %s \n", lineMessageQueue.mgs);
 
 				wait(WAIT_TIME);
 
@@ -89,4 +86,5 @@ int main()
 			exit(0);
 		}
 	}
+	return 0;
 }

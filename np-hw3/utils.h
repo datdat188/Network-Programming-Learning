@@ -13,12 +13,13 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include <sys/wait.h>
 
-#define PORT_SERVER1 18899
+#define PORT_SERVER 18899
+#define PORT_NETD	18900
 
-#define BUFFER_MESSAGE_QUEUE 100
 #define	WAIT_TIME 10
-#define BUFFER_MEMORY_REGULATIONS 256
+#define BUFFER_MEMORY_REGULATIONS 100
 #define	PATH_NAME "utils.h"
 #define failedCase -1
 #define activeSession 1
@@ -28,10 +29,13 @@
 #define MAX_CONNECTION 10
 #define PERMS 0644
 
+#define LOCALHOST "127.0.0.1"
+
 #define createSocketFailedCase "Socket creation failed"
 #define connectSocketFailedCase "Connection failed"
 #define sendMessageSocketFailedCase "Send socket failed"
 #define receiveMessageSocketFailedCase "Receive socket failed"
+#define ipInitializedFailedCase "IP not initialized failed"
 #define endConversationWithServerWord "End"
 #define bindSocketFailedCase "Socket bind failed"
 typedef	void	Sigfunc(int);
@@ -39,7 +43,7 @@ typedef	void	Sigfunc(int);
 struct msg
 {
     long msg_type;
-    char mgs[BUFFER_MESSAGE_QUEUE];
+    char mgs[BUFFER_MEMORY_REGULATIONS];
 };
 
 
@@ -92,7 +96,7 @@ upcase(char *str)
 
 int 
 endConversationWithServer(char* message){
-	if (strcmp(message, endConversationWithServerWord) == 0)
+	if (strcmp(message, (char*)endConversationWithServerWord) == 0)
 	{
 		return 1;
 	}
