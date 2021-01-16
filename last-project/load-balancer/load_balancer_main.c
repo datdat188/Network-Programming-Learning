@@ -22,5 +22,5 @@ int main(int argc, char **argv)
 	}
     
     proxy_port = atoi(argv[1]);
-    startServer(argv[2], proxy_port);
+    //startServer(argv[2], proxy_port);
 }

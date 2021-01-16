@@ -1,4 +1,5 @@
 #include "lb_proxy_server.h"
+#include "utils.h"
 
 void startServer(char* ip, int port){
     pid_t pid;
@@ -9,6 +10,7 @@ void startServer(char* ip, int port){
 	pid_t				childpid;
 	socklen_t			clilen;
 	struct sockaddr_in	cliaddr, servaddr;
+    int i,ret, nready, len;
 
     // set all 0 for memory buffer
     bzero((char*)&servaddr,sizeof(servaddr));
@@ -27,7 +29,57 @@ void startServer(char* ip, int port){
     Listen(listenfd, LISTENQ);
     printf("Listener socket created and bound to port %d\n", port);
 
+    int rc = sock_set_non_blocking(listenfd);
+    assert(rc == 0 && "sock_set_non_blocking");
+
+    int efd = epoll_create1(0);
+	if (efd == -1)
+        handleError("epoll_create1 error");
+
+    struct epoll_event ev = {
+        .data.fd = listenfd,
+        .events = EPOLLIN | EPOLLET,
+    };
+
+	if(epoll_ctl(efd, EPOLL_CTL_ADD, listenfd, &ev) < 0)
+        handleError("epoll_ctl error");
+
+    struct epoll_event *pevents = (struct epoll_event*)calloc(MAXEVENTS, sizeof(struct epoll_event));
+
     while(activeSession){
-        
+        nready = epoll_wait(efd, pevents, MAXEVENTS, -1);
+        for(i = 0; i < nready; i++){
+            if(listenfd == pevents[i].data.fd){
+                /* we hava one or more incoming connections */
+                while (activeSession)
+                {
+                    socklen_t inlen = sizeof(cliaddr);
+                    struct sockaddr_in clientaddr;
+                    int infd = accept(listenfd, (struct sockaddr *) &clientaddr, &inlen);
+                    if (infd < 0) {
+                        if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                            /* we have processed all incoming connections */
+                            break;
+                        }
+                        handleError("accept");
+                        break;
+                    }
+
+                    rc = sock_set_non_blocking(infd);
+                    assert(rc == 0 && "sock_set_non_blocking");
+                }
+            }
+            else {
+                if( (pevents[i].events & EPOLLERR) ||
+                    (pevents[i].events & EPOLLHUP) ||
+                  (!(pevents[i].events & EPOLLIN))){
+                    handleError("epoll_wait");
+                    close(pevents[i].data.fd);
+                    continue;
+			    }
+
+                // Handle something
+            }
+        }
     }
 }

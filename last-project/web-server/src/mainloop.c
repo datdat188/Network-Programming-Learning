@@ -124,8 +124,7 @@ int main()
                 while (1) {
                     socklen_t inlen = 1;
                     struct sockaddr_in clientaddr;
-                    int infd = accept(listenfd, (struct sockaddr *) &clientaddr,
-                                      &inlen);
+                    int infd = accept(listenfd, (struct sockaddr *) &clientaddr, &inlen);
                     if (infd < 0) {
                         if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                             /* we have processed all incoming connections */

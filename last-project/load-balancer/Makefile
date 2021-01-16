@@ -13,8 +13,14 @@ all: load_balancer_main
 %.o: %.c $(HEADER_FILES)
 	$(CC) -c $<
 
-web_server: $(OBJ_FILES)
+load_balancer_main: $(OBJ_FILES)
 	$(CC) -o $@ $(OBJ_FILES) $(CFLAGS)
+
+netdclient: netdclient.c
+	$(CC) -o $@ $^ $(CFLAGS)
+
+netdsrv: netdsrv.c 
+	$(CC) -o $@ $^ $(CFLAGS)
 
 .PHONY: clean
 clean:

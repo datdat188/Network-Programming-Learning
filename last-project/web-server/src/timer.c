@@ -143,14 +143,14 @@ static size_t current_msec;
 static void time_update()
 {
     struct timeval tv;
-    int rc UNUSED = gettimeofday(&tv, NULL);
+    int rc  = gettimeofday(&tv, NULL);
     assert(rc == 0 && "time_update: gettimeofday error");
     current_msec = tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
 int timer_init()
 {
-    bool ret UNUSED = prio_queue_init(&timer, timer_comp, PQ_DEFAULT_SIZE);
+    bool ret  = prio_queue_init(&timer, timer_comp, PQ_DEFAULT_SIZE);
     assert(ret && "prio_queue_init error");
 
     time_update();
@@ -167,7 +167,7 @@ int find_timer()
         assert(node && "prio_queue_min error");
 
         if (node->deleted) {
-            bool ret UNUSED = prio_queue_delmin(&timer);
+            bool ret  = prio_queue_delmin(&timer);
             assert(ret && "prio_queue_delmin");
             free(node);
             continue;
@@ -183,7 +183,7 @@ int find_timer()
 
 void handle_expired_timers()
 {
-    bool ret UNUSED;
+    bool ret ;
 
     while (!prio_queue_is_empty(&timer)) {
         debug("handle_expired_timers, size = %zu", prio_queue_size(&timer));
@@ -221,7 +221,7 @@ void add_timer(http_request_t *req, size_t timeout, timer_callback cb)
     node->callback = cb;
     node->request = req;
 
-    bool ret UNUSED = prio_queue_insert(&timer, node);
+    bool ret  = prio_queue_insert(&timer, node);
     assert(ret && "add_timer: prio_queue_insert error");
 }
 

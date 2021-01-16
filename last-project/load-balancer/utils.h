@@ -36,6 +36,7 @@
 #define MAX_CONNECTION 10
 #define	SA	struct sockaddr
 #define	LISTENQ	1024
+#define MAXEVENTS 64
 #define PERMS 0644
 
 #define LOCALHOST "127.0.0.1"
@@ -128,7 +129,7 @@ Socket(int family, int type, int protocol)
 	int		n;
 
 	if ( (n = socket(family, type, protocol)) < 0)
-		error("socket error");
+		handleError(createSocketFailedCase);
 	return(n);
 }
 /* end Socket */
@@ -137,7 +138,7 @@ void
 Bind(int fd, const struct sockaddr *sa, socklen_t salen)
 {
 	if (bind(fd, sa, salen) < 0)
-		error("bind error");
+		handleError(bindSocketFailedCase);
 }
 
 /* include Listen */
@@ -151,7 +152,7 @@ Listen(int fd, int backlog)
 		backlog = atoi(ptr);
 
 	if (listen(fd, backlog) < 0)
-		error("listen error");
+		handleError("listen error");
 }
 /* end Listen */
 
@@ -169,7 +170,7 @@ again:
 #endif
 			goto again;
 		else
-			error("accept error");
+			handleError("accept error");
 	}
 	return(n);
 }
@@ -178,7 +179,7 @@ void
 Connect(int fd, const struct sockaddr *sa, socklen_t salen)
 {
 	if (connect(fd, sa, salen) < 0)
-		error("connect error");
+		handleError(connectSocketFailedCase);
 }
 
 ssize_t
@@ -187,7 +188,7 @@ Recv(int fd, void *ptr, size_t nbytes, int flags)
 	ssize_t		n;
 
 	if ( (n = recv(fd, ptr, nbytes, flags)) < 0)
-		error("recv error");
+		handleError(receiveMessageSocketFailedCase);
 	return(n);
 }
 
@@ -195,12 +196,12 @@ void
 Send(int fd, const void *ptr, size_t nbytes, int flags)
 {
 	if (send(fd, ptr, nbytes, flags) != (ssize_t)nbytes)
-		error("send error");
+		handleError(sendMessageSocketFailedCase);
 }
 
 void
 Close(int fd)
 {
 	if (close(fd) == -1)
-		error("close error");
+		handleError("close error");
 }
