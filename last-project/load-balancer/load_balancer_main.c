@@ -1,4 +1,3 @@
-#include "utils.h"
 #include "lb_proxy_server.h"
 
 
@@ -18,9 +17,10 @@ int main(int argc, char **argv)
             break;
     
     if(portLength != idx){
-        handleError(portProxyInvalidCase);
+        handleError("Port");
 	}
     
     proxy_port = atoi(argv[1]);
-    //startServer(argv[2], proxy_port);
+    startServer(argv[2], proxy_port);
+    return 0;
 }

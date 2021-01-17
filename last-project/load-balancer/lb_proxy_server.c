@@ -1,5 +1,4 @@
 #include "lb_proxy_server.h"
-#include "utils.h"
 
 void startServer(char* ip, int port){
     pid_t pid;
@@ -22,15 +21,14 @@ void startServer(char* ip, int port){
 	servaddr.sin_port        = htons(port);
     
     // Create the listener 
-    listenfd = Socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    listenfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-    Bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
+    bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
 
-    Listen(listenfd, LISTENQ);
+    listen(listenfd, LISTENQ);
     printf("Listener socket created and bound to port %d\n", port);
 
     int rc = sock_set_non_blocking(listenfd);
-    assert(rc == 0 && "sock_set_non_blocking");
 
     int efd = epoll_create1(0);
 	if (efd == -1)
@@ -66,7 +64,7 @@ void startServer(char* ip, int port){
                     }
 
                     rc = sock_set_non_blocking(infd);
-                    assert(rc == 0 && "sock_set_non_blocking");
+                    
                 }
             }
             else {
