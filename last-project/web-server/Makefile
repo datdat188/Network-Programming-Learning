@@ -1,38 +1,21 @@
-.PHONY: all check clean
-TARGET = web_server
+TARGET= web_server $(wildcard *.o)
+C_FILES := $(wildcard *.c)
+HEADER_FILES := $(wildcard *.h)
+OBJ_FILES := $(patsubst %.c,%.o,$(C_FILES))
 
-include common.mk
+CC=/usr/bin/gcc
+CFLAGS=-g -Wall -pthread -Wall -Wextra -Wshadow -Wpointer-arith -Wwrite-strings -Wall 
 
-CFLAGS = -I./src
-CFLAGS += -O2
-CFLAGS += -std=gnu99 -Wall -W
-CFLAGS += -DUNUSED="__attribute__((unused))"
-CFLAGS += -DNDEBUG
-LDFLAGS =
+normal: $(TARGET)
 
-# standard build rules
-.SUFFIXES: .o .c
-.c.o:
-	$(VECHO) "  CC\t$@\n"
-	$(Q)$(CC) -o $@ $(CFLAGS) -c -MMD -MF $@.d $<
+all: web_server
 
-OBJS = \
-    src/http.o \
-    src/http_parser.o \
-    src/http_request.o \
-    src/timer.o \
-    src/mainloop.o
-deps := $(patsubst %.o,%.o.d,$(OBJS))
+%.o: %.c $(HEADER_FILES)
+	$(CC) -c $<
 
-$(TARGET): $(OBJS)
-	#$(VECHO) "  LD\t$@\n"
-	$(Q)$(CC) -o $@ $^ $(LDFLAGS)
+web_server: $(OBJ_FILES)
+	$(CC) -o $@ $(OBJ_FILES) $(CFLAGS)
 
-check: all
-	@scripts/test.sh
-
+.PHONY: clean
 clean:
-	$(VECHO) "  Cleaning...\n"
-	$(Q)$(RM) $(TARGET) $(OBJS) $(deps)
-
--include $(deps)
+	rm -f $(TARGET)
