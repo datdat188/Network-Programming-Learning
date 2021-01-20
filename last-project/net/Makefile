@@ -1,10 +1,13 @@
-src = $(wildcard *.c)
-obj = $(src:.c=.o)
+TARGET=netdclient netdsrv $(wildcard *.o)
 CC=/usr/bin/gcc
 CFLAGS=-g -Wall -pthread -Wall -Wextra -Wshadow -Wpointer-arith -Wwrite-strings -Wall 
-
-loab_balancer: $(obj)
+normal: $(TARGET)
+netdclient: netdclient.c
 	$(CC) -o $@ $^ $(CFLAGS)
+
+netdsrv: netdsrv.c 
+	$(CC) -o $@ $^ $(CFLAGS)
+
 .PHONY: clean
 clean:
-	rm -f loab_balancer
+	rm -f $(TARGET)

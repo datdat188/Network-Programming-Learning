@@ -3,30 +3,22 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <string.h>
 #include <sys/ipc.h>
 
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
-#include <sys/epoll.h>
 #include <sys/wait.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-
-#include <ctype.h>
-#include <syslog.h>
-#include <signal.h>
-#include <sys/ioctl.h>
-#include <netdb.h>
-
 
 #define PORT_SERVER 18899
 #define PORT_NETD	18900
 
-#define	WAIT_TIME 103
+#define	WAIT_TIME 10
 #define BUFFER_MEMORY_REGULATIONS 100
 #define	PATH_NAME "utils.h"
 #define failedCase -1
@@ -55,6 +47,15 @@ struct msg
 };
 
 
+Sigfunc *
+Signal(int signo, Sigfunc *func)	/* for our signal() function */
+{
+	Sigfunc	*sigfunc;
+
+	if ( (sigfunc = signal(signo, func)) == SIG_ERR)
+		error("signal error");
+	return(sigfunc);
+}
 
 void
 sig_chld(int signo)
@@ -73,15 +74,6 @@ handleError(const char* caseError){
 	//caseError = strcat("[#] Client: ",caseError);
 	perror(caseError);
 	exit(1);
-}
-Sigfunc *
-Signal(int signo, Sigfunc *func)	/* for our signal() function */
-{
-	Sigfunc	*sigfunc;
-
-	if ( (sigfunc = signal(signo, func)) == SIG_ERR)
-		handleError("signal error");
-	return(sigfunc);
 }
 
 int
