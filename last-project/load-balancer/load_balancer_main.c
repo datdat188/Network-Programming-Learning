@@ -1,6 +1,6 @@
 #include "header/lb_proxy_server.h"
 
-char lb_ip[16] = "127.0.0.1";
+char lb_ip[] = "127.0.0.1";
 int lb_port = 8888;
 
 int main(int argc, char **argv)

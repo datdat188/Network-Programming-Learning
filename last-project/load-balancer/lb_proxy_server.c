@@ -81,3 +81,58 @@ void startServer(char* ip, int port){
         }
     }
 }
+
+void active_handler(/*int client_sock, shared_ptr<backend> ws*/)
+{
+    // get client addr
+    // sockaddr_in sa = get_client_addr(client_sock);
+    // int port = htons(sa.sin_port);
+    // char ip[INET_ADDRSTRLEN];
+    // inet_ntop(AF_INET, &(sa.sin_addr), ip, INET_ADDRSTRLEN);
+
+    // // get current time
+    // string timenow = get_time();
+
+    // // write to log
+    // string msg_log = log(timenow, ip, port, ws->get_host());
+    // //log_terminal(timenow, ip, port);
+
+    // // add to msg queue
+    // struct message msgSend;
+    // msgSend.msg_type = 1;
+    // (void)strcpy(msgSend.msg, msg_log.c_str());
+    // msgsnd(msqid, &msgSend, sizeof(message), 0);
+}
+
+void standby_handler()
+{
+    // doc tu msg_queue
+    // while (1)
+    // {
+    //     message msgRecv;
+    //     if (msgrcv(msqid, &msgRecv, sizeof(message), 0, 0) < 0)
+    //     {
+    //         cerr << "msgrcv() error in handle_log_standby !" << endl;
+    //     }
+
+    //     else // ghi vao log
+    //     {
+    //         log(msgRecv.msg);
+    //     }
+    // }
+}
+
+char* get_cookie_serverid(char* msg)
+{
+    return msg;
+}
+
+void set_cookie_serverid()
+{
+
+}
+
+void proxy_forward_request(char* msg)
+{
+    
+}
