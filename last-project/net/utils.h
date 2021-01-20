@@ -40,7 +40,7 @@
 #define bindSocketFailedCase "Socket bind failed"
 typedef	void	Sigfunc(int);
 
-struct msg
+struct msg 
 {
     long msg_type;
     char mgs[BUFFER_MEMORY_REGULATIONS];
@@ -53,7 +53,7 @@ Signal(int signo, Sigfunc *func)	/* for our signal() function */
 	Sigfunc	*sigfunc;
 
 	if ( (sigfunc = signal(signo, func)) == SIG_ERR)
-		error("signal error");
+		perror("signal error");
 	return(sigfunc);
 }
 

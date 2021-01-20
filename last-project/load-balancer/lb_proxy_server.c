@@ -18,59 +18,42 @@ static int sock_set_non_blocking(int fd)
 }
 
 void startServer(char* ip, int port){
-    pid_t pid;
-    struct sockaddr_in addr_in,cli_addr,serv_addr;
-    struct hostent* host;
 
-    int					listenfd, connfd;
-	pid_t				childpid;
-	socklen_t			clilen;
-	struct sockaddr_in	cliaddr, servaddr;
-    int i,ret, nready, len;
+    int lsockfd = Socket();
+    Setsockopt(lsockfd);
+    Bind(lsockfd,  port);
+    Listen(lsockfd);
 
-    // set all 0 for memory buffer
-    bzero((char*)&servaddr,sizeof(servaddr));
-    bzero((char*)&cliaddr, sizeof(cliaddr));
+    struct sockaddr_in cliaddr;
     
-    // Create the server
-    servaddr.sin_family      = AF_INET;
-	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	servaddr.sin_port        = htons(port);
-    
-    // Create the listener 
-    listenfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
-
-    listen(listenfd, LISTENQ);
     printf("Listener socket created and bound to port %d\n", port);
 
-    int rc = sock_set_non_blocking(listenfd);
+    int rc = sock_set_non_blocking(lsockfd);
 
     int efd = epoll_create1(0);
 	if (efd == -1)
         handleError("epoll_create1 error");
 
     struct epoll_event ev = {
-        .data.fd = listenfd,
+        .data.fd = lsockfd,
         .events = EPOLLIN | EPOLLET,
     };
 
-	if(epoll_ctl(efd, EPOLL_CTL_ADD, listenfd, &ev) < 0)
+	if(epoll_ctl(efd, EPOLL_CTL_ADD, lsockfd, &ev) < 0)
         handleError("epoll_ctl error");
 
     struct epoll_event *pevents = (struct epoll_event*)calloc(MAXEVENTS, sizeof(struct epoll_event));
 
     while(activeSession){
-        nready = epoll_wait(efd, pevents, MAXEVENTS, -1);
-        for(i = 0; i < nready; i++){
-            if(listenfd == pevents[i].data.fd){
+        int nready = epoll_wait(efd, pevents, MAXEVENTS, -1);
+        for(int i = 0; i < nready; i++){
+            if(lsockfd == pevents[i].data.fd){
                 /* we hava one or more incoming connections */
                 while (activeSession)
                 {
                     socklen_t inlen = sizeof(cliaddr);
                     struct sockaddr_in clientaddr;
-                    int infd = accept(listenfd, (struct sockaddr *) &clientaddr, &inlen);
+                    int infd = accept(lsockfd, (struct sockaddr *) &clientaddr, &inlen);
                     if (infd < 0) {
                         if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                             /* we have processed all incoming connections */

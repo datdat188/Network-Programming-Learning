@@ -3,8 +3,8 @@ obj = $(src:.c=.o)
 CC=/usr/bin/gcc
 CFLAGS=-g -Wall -pthread -Wall -Wextra -Wshadow -Wpointer-arith -Wwrite-strings -Wall 
 
-loab_balancer: $(obj)
+main_lb_srv: $(obj)
 	$(CC) -o $@ $^ $(CFLAGS)
 .PHONY: clean
 clean:
-	rm -f loab_balancer
+	rm -f main_lb_srv $(obj)
