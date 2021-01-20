@@ -22,15 +22,15 @@ int http_close_conn(http_request_t *r)
     return 0;
 }
 
-static int http_process_ignore(http_request_t *r UNUSED,
-                               http_out_t *out UNUSED,
-                               char *data UNUSED,
-                               int len UNUSED)
+static int http_process_ignore(http_request_t *r ,
+                               http_out_t *out ,
+                               char *data ,
+                               int len )
 {
     return 0;
 }
 
-static int http_process_connection(http_request_t *r UNUSED,
+static int http_process_connection(http_request_t *r ,
                                    http_out_t *out,
                                    char *data,
                                    int len)
@@ -40,10 +40,10 @@ static int http_process_connection(http_request_t *r UNUSED,
     return 0;
 }
 
-static int http_process_if_modified_since(http_request_t *r UNUSED,
+static int http_process_if_modified_since(http_request_t *r ,
                                           http_out_t *out,
                                           char *data,
-                                          int len UNUSED)
+                                          int len )
 {
     struct tm tm;
     if (!strptime(data, "%a, %d %b %Y %H:%M:%S GMT", &tm))
