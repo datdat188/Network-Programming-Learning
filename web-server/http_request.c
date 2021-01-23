@@ -11,12 +11,6 @@
 
 int http_close_conn(http_request_t *r)
 {
-    /* An open file description continues to exist until all file descriptors
-     * referring to it have been closed. A file descriptor is removed from an
-     * epoll set only after all the file descriptors referring to the
-     * underlying open file description have been closed (or before if the
-     * descriptor is explicitly removed using epoll_ctl(2) EPOLL_CTL_DEL).
-     */
     close(r->fd);
     free(r);
     return 0;
@@ -51,8 +45,7 @@ static int http_process_if_modified_since(http_request_t *r ,
 
     time_t client_time = mktime(&tm);
     double time_diff = difftime(out->mtime, client_time);
-    /* TODO: use custom absolute value function rather without libm */
-    if (fabs(time_diff) < 1e-6) { /* Not modified */
+    if (fabs(time_diff) < 1e-6) { 
         out->modified = false;
         out->status = HTTP_NOT_MODIFIED;
     }
@@ -80,7 +73,6 @@ void http_handle_header(http_request_t *r, http_out_t *o)
             }
         }
 
-        /* delete it from the original list */
         list_del(pos);
         free(header);
     }

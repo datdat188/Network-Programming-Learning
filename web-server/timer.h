@@ -10,7 +10,7 @@ typedef int (*timer_callback)(http_request_t *req);
 
 typedef struct {
     size_t key;
-    bool deleted; /* if remote client close socket first, set deleted true */
+    bool deleted; 
     timer_callback callback;
     http_request_t *request;
 } timer_node;

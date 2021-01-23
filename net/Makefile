@@ -1,4 +1,4 @@
-TARGET=netdclient netdsrv $(wildcard *.o)
+TARGET=netdclient netdsrv client $(wildcard *.o)
 CC=/usr/bin/gcc
 CFLAGS=-g -Wall -pthread -Wall -Wextra -Wshadow -Wpointer-arith -Wwrite-strings -Wall 
 normal: $(TARGET)
@@ -7,6 +7,9 @@ netdclient: netdclient.c
 
 netdsrv: netdsrv.c 
 	$(CC) -o $@ $^ $(CFLAGS)
+
+client: client.cpp
+	g++ -o $@ $^ $(CFLAGS)
 
 .PHONY: clean
 clean:

@@ -7,7 +7,7 @@ using namespace std;
 int main(int argc, char **argv)
 {
     string lb_port = "8888";
-    string ws_host = "192.168.174.137";
+    string ws_host = "192.168.174.131";
     string ws_port = "8081";
 
     epoll_init();

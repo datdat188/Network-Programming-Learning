@@ -15,8 +15,6 @@ typedef struct list_head list_head;
         (_ptr)->next = (_ptr);        \
         (_ptr->prev) = (_ptr);        \
     } while (0)
-
-/* Insert a new entry to two consecutive entries */
 static inline void __list_add(struct list_head *_new,
                               struct list_head *prev,
                               struct list_head *next)
@@ -37,7 +35,6 @@ static inline void list_add_tail(struct list_head *_new, struct list_head *head)
     __list_add(_new, head->prev, head);
 }
 
-/* Delete an entry to two consecutive entries */
 static inline void __list_del(struct list_head *prev, struct list_head *next)
 {
     prev->next = next;

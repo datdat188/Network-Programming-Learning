@@ -4,7 +4,6 @@
 
 #include "http.h"
 
-/* constant-time string comparison */
 #define cst_strcmp(m, c0, c1, c2, c3) \
     *(uint32_t *) m == ((c3 << 24) | (c2 << 16) | (c1 << 8) | c0)
 
@@ -41,9 +40,7 @@ int http_parse_request_line(http_request_t *r)
         p = (uint8_t *) &r->buf[pi % MAX_BUF];
         ch = *p;
 
-        /* TODO: use computed goto for efficient dispatching */
         switch (state) {
-        /* HTTP methods: GET, HEAD, POST */
         case s_start:
             r->request_start = p;
 
@@ -92,7 +89,6 @@ int http_parse_request_line(http_request_t *r)
                 return HTTP_PARSER_INVALID_METHOD;
             break;
 
-        /* space* before URI */
         case s_spaces_before_uri:
             if (ch == '/') {
                 r->uri_start = p;
@@ -119,7 +115,6 @@ int http_parse_request_line(http_request_t *r)
             }
             break;
 
-        /* space+ after URI */
         case s_http:
             switch (ch) {
             case ' ':
@@ -172,7 +167,6 @@ int http_parse_request_line(http_request_t *r)
             }
             break;
 
-        /* first digit of major HTTP version */
         case s_first_major_digit:
             if (ch < '1' || ch > '9')
                 return HTTP_PARSER_INVALID_REQUEST;
@@ -181,7 +175,6 @@ int http_parse_request_line(http_request_t *r)
             state = s_major_digit;
             break;
 
-        /* major HTTP version or dot */
         case s_major_digit:
             if (ch == '.') {
                 state = s_first_minor_digit;
@@ -194,7 +187,6 @@ int http_parse_request_line(http_request_t *r)
             r->http_major = r->http_major * 10 + ch - '0';
             break;
 
-        /* first digit of minor HTTP version */
         case s_first_minor_digit:
             if (ch < '0' || ch > '9')
                 return HTTP_PARSER_INVALID_REQUEST;
@@ -203,7 +195,6 @@ int http_parse_request_line(http_request_t *r)
             state = s_minor_digit;
             break;
 
-        /* minor HTTP version or end of request line */
         case s_minor_digit:
             if (ch == CR) {
                 state = s_almost_done;
@@ -238,7 +229,6 @@ int http_parse_request_line(http_request_t *r)
             }
             break;
 
-        /* end of request line */
         case s_almost_done:
             r->request_end = p - 1;
             switch (ch) {

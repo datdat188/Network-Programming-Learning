@@ -13,7 +13,6 @@
 #include "logger.h"
 #include "timer.h"
 
-/* the length of the struct epoll_events array pointed to by *events */
 #define MAXEVENTS 1024
 
 #define LISTENQ 1024
@@ -22,16 +21,13 @@ static int open_listenfd(int port)
 {
     int listenfd, optval = 1;
 
-    /* Create a socket descriptor */
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         return -1;
 
-    /* Eliminate "Address already in use" error from bind. */
     if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (const void *) &optval,
                    sizeof(int)) < 0)
         return -1;
 
-    /* Listenfd will be an endpoint for all requests to given port. */
     struct sockaddr_in serveraddr = {
         .sin_family = AF_INET,
         .sin_addr.s_addr = htonl(INADDR_ANY),
@@ -41,17 +37,12 @@ static int open_listenfd(int port)
     if (bind(listenfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) < 0)
         return -1;
 
-    /* Make it a listening socket ready to accept connection requests */
     if (listen(listenfd, LISTENQ) < 0)
         return -1;
 
     return listenfd;
 }
 
-/* set a socket non-blocking. If a listen socket is a blocking socket, after
- * it comes out from epoll and accepts the last connection, the next accpet
- * will block unexpectedly.
- */
 static int sock_set_non_blocking(int fd)
 {
     int flags = fcntl(fd, F_GETFL, 0);
@@ -69,15 +60,11 @@ static int sock_set_non_blocking(int fd)
     return 0;
 }
 
-/* TODO: use command line options to specify */
 #define PORT 8081
 #define WEBROOT "./www"
 
 int main()
 {
-    /* when a fd is closed by remote, writing to this fd will cause system
-     * send SIGPIPE to this process, which exit the program
-     */
     if (sigaction(SIGPIPE,
                   &(struct sigaction){.sa_handler = SIG_IGN, .sa_flags = 0},
                   NULL)) {
@@ -89,8 +76,7 @@ int main()
     int rc = sock_set_non_blocking(listenfd);
     assert(rc == 0 && "sock_set_non_blocking");
 
-    /* create epoll and add listenfd */
-    int epfd = epoll_create1(0 /* flags */);
+    int epfd = epoll_create1(0);
     assert(epfd > 0 && "epoll_create1");
 
     struct epoll_event *events = malloc(sizeof(struct epoll_event) * MAXEVENTS);
@@ -109,7 +95,6 @@ int main()
 
     printf("Web server started.\n");
 
-    /* epoll_wait loop */
     while (1) {
         int time = find_timer();
         debug("wait time = %d", time);
@@ -120,14 +105,12 @@ int main()
             http_request_t *r = events[i].data.ptr;
             int fd = r->fd;
             if (listenfd == fd) {
-                /* we hava one or more incoming connections */
                 while (1) {
                     socklen_t inlen = 1;
                     struct sockaddr_in clientaddr;
                     int infd = accept(listenfd, (struct sockaddr *) &clientaddr, &inlen);
                     if (infd < 0) {
                         if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-                            /* we have processed all incoming connections */
                             break;
                         }
                         log_err("accept");

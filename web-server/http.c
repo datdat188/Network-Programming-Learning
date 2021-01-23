@@ -26,11 +26,11 @@ static ssize_t writen(int fd, void *usrbuf, size_t n)
 
     for (size_t nleft = n; nleft > 0; nleft -= nwritten) {
         if ((nwritten = write(fd, bufp, nleft)) <= 0) {
-            if (errno == EINTR) /* interrupted by sig handler return */
-                nwritten = 0;   /* and call write() again */
+            if (errno == EINTR) 
+                nwritten = 0;   
             else {
                 log_err("errno == %d\n", errno);
-                return -1; /* errrno set by write() */
+                return -1; 
             }
         }
         bufp += nwritten;
@@ -62,10 +62,6 @@ static void parse_uri(char *uri, int uri_length, char *filename)
     assert(uri && "parse_uri: uri is NULL");
     uri[uri_length] = '\0';
 
-    /* TODO: support query string, i.e.
-     *       https://example.com/over/there?name=ferret
-     * Reference: https://en.wikipedia.org/wiki/Query_string
-     */
     char *question_mark = strchr(uri, '?');
     int file_length;
     if (question_mark) {
@@ -76,7 +72,6 @@ static void parse_uri(char *uri, int uri_length, char *filename)
         debug("file_length = uri_length = %d", file_length);
     }
 
-    /* uri_length can not be too long */
     if (uri_length > (SHORTLINE >> 1)) {
         log_err("uri too long: %.*s", uri_length, uri);
         return;
@@ -231,7 +226,7 @@ void do_request(void *ptr)
         int n = read(fd, plast, remain_size);
         assert(r->last - r->pos < MAX_BUF && "request buffer overflow!");
 
-        if (n == 0) /* EOF */
+        if (n == 0) 
             goto err;
 
         if (n < 0) {
@@ -245,7 +240,6 @@ void do_request(void *ptr)
         r->last += n;
         assert(r->last - r->pos < MAX_BUF && "request buffer overflow!");
 
-        /* about to parse request line */
         rc = http_parse_request_line(r);
         if (rc == EAGAIN)
             continue;
@@ -265,7 +259,6 @@ void do_request(void *ptr)
             goto err;
         }
 
-        /* handle http header */
         http_out_t *out = malloc(sizeof(http_out_t));
         if (!out) {
             log_err("no enough space for http_out_t");
@@ -316,7 +309,6 @@ void do_request(void *ptr)
 
 err:
 close:
-    /* TODO: handle the timeout raised by inactive connections */
     rc = http_close_conn(r);
     assert(rc == 0 && "do_request: http_close_conn");
 }

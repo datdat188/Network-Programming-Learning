@@ -32,7 +32,7 @@ typedef struct {
     void *root;
     int fd;
     int epfd;
-    char buf[MAX_BUF]; /* ring buffer */
+    char buf[MAX_BUF];
     size_t pos, last;
     int state;
     void *request_start;
@@ -41,7 +41,7 @@ typedef struct {
     int http_major, http_minor;
     void *request_end;
 
-    struct list_head list; /* store http header */
+    struct list_head list;
     void *cur_header_key_start, *cur_header_key_end;
     void *cur_header_value_start, *cur_header_value_end;
 
@@ -51,15 +51,13 @@ typedef struct {
 typedef struct {
     int fd;
     bool keep_alive;
-    time_t mtime;  /* the modified time of the file */
-    bool modified; /* compare If-modified-since field with mtime to decide
-                    * whether the file is modified since last time
-                    */
+    time_t mtime;  
+    bool modified; 
     int status;
 } http_out_t;
 
 typedef struct {
-    void *key_start, *key_end; /* not include end */
+    void *key_start, *key_end; 
     void *value_start, *value_end;
     list_head list;
 } http_header_t;
@@ -89,7 +87,6 @@ static inline void init_http_request(http_request_t *r,
     INIT_LIST_HEAD(&(r->list));
 }
 
-/* TODO: public functions should have conventions to prefix http_ */
 void do_request(void *infd);
 
 int http_parse_request_line(http_request_t *r);

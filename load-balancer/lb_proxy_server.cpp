@@ -3,6 +3,13 @@
 #include "header/socket_utils.h"
 #include "header/net.h"
 #include "header/epoll_support.h"  
+#include "header/connection.h"
+#include "header/log.h"
+#include "time.h"
+#include <ctime>
+#include <chrono>
+
+#define BUFFER_SIZE 4096
 
 
 struct server_socket_event_data {
@@ -15,7 +22,10 @@ struct proxy_data {
     struct epoll_data_handler* backend;
 };
 
-
+struct message {
+   long msg_type;
+   char msg[100];
+};
 
 string get_host(string request){
     string host;
@@ -40,6 +50,52 @@ string get_cookie_serverid(string request)
     return ip;
 }
 
+void on_client_read(void* closure, char* buffer, int len)
+{
+    struct proxy_data* data = (struct proxy_data*) closure;
+    if (data->backend == NULL) {
+        return;
+    }
+    cout << "buffet on client read: " << buffer << endl;
+    connection_write(data->backend, buffer, len);
+}
+
+
+void on_client_close(void* closure)
+{
+    struct proxy_data* data = (struct proxy_data*) closure;
+    if (data->backend == NULL) {
+        return;
+    }
+    connection_close(data->backend);
+    data->client = NULL;
+    data->backend = NULL;
+    epoll_add_to_free_list(closure);
+}
+
+
+void on_backend_read(void* closure, char* buffer, int len)
+{
+    struct proxy_data* data = (struct proxy_data*) closure;
+    if (data->client == NULL) {
+        return;
+    }
+    cout << "buffet on backend read: " << buffer << endl;
+    connection_write(data->client, buffer, len);
+}
+
+void on_backend_close(void* closure)
+{
+    struct proxy_data* data = (struct proxy_data*) closure;
+    if (data->client == NULL) {
+        return;
+    } 
+    connection_close(data->client);
+    data->client = NULL;
+    data->backend = NULL;
+    epoll_add_to_free_list(closure);
+}
+
 int check_valid_uri(string request)
 {
     if (request.find("/lienhe.html") == string::npos 
@@ -60,6 +116,71 @@ void handle_client_connection(int client_socket_fd,
                               string backend_host, 
                               string backend_port_str) 
 {
+    struct epoll_data_handler* client_connection;
+    client_connection = create_connection(client_socket_fd);
+
+    int backend_socket_fd = connect_to_backend((char*)backend_host.c_str(), (char*)backend_port_str.c_str());
+    struct epoll_data_handler* backend_connection;
+    backend_connection = create_connection(backend_socket_fd);
+
+    struct proxy_data* proxy = (proxy_data*)malloc(sizeof(struct proxy_data));
+    proxy->client = client_connection;
+    proxy->backend = backend_connection;
+
+    struct connection_closure* client_closure = (struct connection_closure*) client_connection->closure_event;
+    client_closure->on_read = on_client_read;
+    client_closure->on_read_closure = proxy;
+    client_closure->on_close = on_client_close;
+    client_closure->on_close_closure = proxy;
+
+    struct connection_closure* backend_closure = (struct connection_closure*) backend_connection->closure_event;
+    backend_closure->on_read = on_backend_read;
+    backend_closure->on_read_closure = proxy;
+    backend_closure->on_close = on_backend_close;
+    backend_closure->on_close_closure = proxy;
+}
+
+void close_backend_socket(struct epoll_data_handler* self)
+{
+    close(self->fd);
+    free(self->closure_event);
+    free(self);
+}
+
+void handle_backend_socket_event(struct epoll_data_handler* self, uint32_t events)
+{
+    struct backend_socket_event_data* closure = (struct backend_socket_event_data*) self->closure_event;
+
+    char buffer[BUFFER_SIZE];
+    int bytes_read;
+
+    if (events & EPOLLIN) 
+    {
+        // make sure that read every thing
+        while ((bytes_read = read(self->fd, buffer, BUFFER_SIZE)) != -1 && bytes_read != 0) 
+        {
+            if (bytes_read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) 
+            {
+                return;
+            }
+
+            if (bytes_read == 0 || bytes_read == -1) 
+            {
+                connection_close(closure->client_handler);
+                close_backend_socket(self);
+                return;
+            }
+            // send to client
+            connection_write(closure->client_handler, buffer, bytes_read);
+        }
+    }
+
+    if ((events & EPOLLERR) | (events & EPOLLHUP) | (events & EPOLLRDHUP)) 
+    {
+        connection_close(closure->client_handler);
+        close_backend_socket(self);
+        return;
+    }
 
 }
 
@@ -69,7 +190,7 @@ void handle_server_socket_event(struct epoll_data_handler* self, uint32_t events
     int client_socket_fd;
     
     while (activeSession) {
-        client_socket_fd = Accept(self->fd);
+        client_socket_fd = accept(self->fd, NULL, NULL);
         if (client_socket_fd == -1) {
             if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                 break;
@@ -78,11 +199,11 @@ void handle_server_socket_event(struct epoll_data_handler* self, uint32_t events
                 exit(1);
             }
         }
-        cout << "accepted";
+        cout << "accepted" << endl;
 
-        // handle_client_connection(client_socket_fd,
-        //                          closure->backend_addr,
-        //                          closure->backend_port_str);
+        handle_client_connection(client_socket_fd,
+                                 closure->backend_addr,
+                                 closure->backend_port_str);
     }
 }
 
@@ -103,6 +224,9 @@ struct epoll_data_handler* startServer(
     string port, string ws_hostid, string ws_port)
 {
     int epoll_fd;
+
+    key_t my_key=123;
+    int msqid = msgget(my_key, 0666 | IPC_CREAT);
 
     epoll_fd = create_and_bind(port);
     make_socket_non_blocking(epoll_fd);
@@ -128,44 +252,46 @@ struct epoll_data_handler* startServer(
     
 }
 
-void active_handler(/*int client_sock, shared_ptr<backend> ws*/)
+void active_handler(int client_sock, int msqid)
 {
-    // get client addr
-    // sockaddr_in sa = get_client_addr(client_sock);
-    // int port = htons(sa.sin_port);
-    // char ip[INET_ADDRSTRLEN];
-    // inet_ntop(AF_INET, &(sa.sin_addr), ip, INET_ADDRSTRLEN);
+    sockaddr_in client;
+    socklen_t addr_size = sizeof(struct sockaddr_in);
+    getpeername(client_sock, (struct sockaddr *)&client, &addr_size);
+    sockaddr_in sa = client;
+    int port = htons(sa.sin_port);
+    char ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &(sa.sin_addr), ip, INET_ADDRSTRLEN);
 
-    // // get current time
-    // string timenow = get_time();
+    auto timenow = chrono::system_clock::to_time_t(chrono::system_clock::now());
+    // get current time
+    string timeNowLog = ctime(&timenow);
 
-    // // write to log
-    // string msg_log = log(timenow, ip, port, ws->get_host());
-    // //log_terminal(timenow, ip, port);
-
-    // // add to msg queue
-    // struct message msgSend;
-    // msgSend.msg_type = 1;
-    // (void)strcpy(msgSend.msg, msg_log.c_str());
-    // msgsnd(msqid, &msgSend, sizeof(message), 0);
+    char * msgR;
+    strcat(msgR, ip);
+    log_write_msg(msgR);
+    // add to msg queue
+    struct message msgSend;
+    msgSend.msg_type = 1;
+    (void)strcpy(msgSend.msg, msgR);
+    msgsnd(msqid, &msgSend, sizeof(message), 0);
 }
 
-void standby_handler()
+void standby_handler(int msqid)
 {
-    // doc tu msg_queue
-    // while (1)
-    // {
-    //     message msgRecv;
-    //     if (msgrcv(msqid, &msgRecv, sizeof(message), 0, 0) < 0)
-    //     {
-    //         cerr << "msgrcv() error in handle_log_standby !" << endl;
-    //     }
+    
+    while (1)
+    {
+        message msgRecv;
+        if (msgrcv(msqid, &msgRecv, sizeof(msgRecv), 0, 0) < 0)
+        {
+            cerr << "msgrcv() error in handle_log_standby !" << endl;
+        }
 
-    //     else // ghi vao log
-    //     {
-    //         log(msgRecv.msg);
-    //     }
-    // }
+        else 
+        {
+            log_write_msg(msgRecv.msg);
+        }
+    }
 }
 
 char* get_cookie_serverid(char* msg)
