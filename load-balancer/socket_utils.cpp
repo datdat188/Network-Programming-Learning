@@ -4,7 +4,7 @@ int
 Socket()
 {
 	int sockfd;
-	if ((sockfd = socket(AF_UNSPEC, SOCK_STREAM, AI_PASSIVE)) < 0)
+	if ((sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
 		perror("socket error");
 	return(sockfd);
 }

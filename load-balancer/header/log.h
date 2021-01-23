@@ -10,6 +10,8 @@ void log_init();
 
 //char* log(char* time, char* ip, int port, char* ws_ip);
 
+static void timer_handler(void);
+
 void log_write_msg( char* msg);
 
 //void log_terminal(char* time, char* ip, int port);
@@ -17,5 +19,3 @@ void log_write_msg( char* msg);
 //void log_close();
 
 static char cached_log_time[LOG_TIME_STR_LEN];
-
-static void timer_handler(void);

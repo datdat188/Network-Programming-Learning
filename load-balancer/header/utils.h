@@ -22,6 +22,11 @@
 #include <sys/ioctl.h>
 #include <netdb.h>
 
+#include <string>
+#include <iostream>
+
+using namespace std;
+
 #pragma once
 
 #define PORT_SERVER 18899
@@ -47,7 +52,7 @@
 #define ipInitializedFailedCase "IP not initialized failed"
 #define endConversationWithServerWord "End"
 #define bindSocketFailedCase "Socket bind failed"
-typedef	void	Sigfunc(int);
+typedef	void Sigfunc(int);
 
 struct msg
 {

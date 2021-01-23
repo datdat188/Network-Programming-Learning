@@ -17,7 +17,7 @@
 #include	<sys/un.h>		/* for Unix domain sockets */
 
 #define	SA	struct sockaddr
-#define MAX_CLIENTS 100
+#define MAX_CLIENTS 4096
 
 int Socket();
 void Setsockopt(int lsockfd);

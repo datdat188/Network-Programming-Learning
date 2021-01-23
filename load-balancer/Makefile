@@ -1,10 +1,12 @@
 src = $(wildcard *.cpp)
 obj = $(src:.cpp=.o)
-CC=/usr/bin/gcc
+CC=/usr/bin/g++
 CFLAGS=-g -Wall -pthread -Wall -Wextra -Wshadow -Wpointer-arith -Wwrite-strings -Wall 
 
-main_lb_srv: $(obj)
+proxy_lb_main: $(obj)
 	$(CC) -o $@ $^ $(CFLAGS)
+	rm -f $(obj)
+
 .PHONY: clean
 clean:
-	rm -f main_lb_srv $(obj)
+	rm -f proxy_lb_main $(obj)

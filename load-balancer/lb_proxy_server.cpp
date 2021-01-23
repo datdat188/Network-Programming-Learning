@@ -1,19 +1,21 @@
 #include "header/lb_proxy_server.h"
 
-static char *not_found_response =
-    "HTTP/1.1 404 Not Found\n"
-    "Content-type: text/html\n" "\n"
-    "<html>\n"
-    " <body>\n"
-    "  <h1>Not Found</h1>\n"
-    "  <p>The requested URL was not found on this server.</p>\n"
-    " </body>\n" 
-    "</html>\n";
+#include "header/socket_utils.h"
+#include "header/net.h"
+#include "header/epoll_support.h"  
 
-/*
-    if != lienhe.html || != '' || !='index.html'
-    send not found response
-*/
+
+struct server_socket_event_data {
+    string backend_addr;
+    string backend_port_str;
+};
+
+struct proxy_data {
+    struct epoll_data_handler* client;
+    struct epoll_data_handler* backend;
+};
+
+
 
 string get_host(string request){
     string host;
@@ -26,7 +28,7 @@ string get_host(string request){
     return host;
 }
 
-string get_cookie(string request)
+string get_cookie_serverid(string request)
 {
     string ip;
     if (request.find("Cookie:") != string::npos)
@@ -47,61 +49,83 @@ int check_valid_uri(string request)
     return 1;
 }
 
-void startServer(string ip, string const& port)
+void set_cookie_serverid(string response, string ws_ip)
+{
+    string insert_str = "Set-cookie: SERVERID=";
+    insert_str.append(ws_ip);
+    response.append(insert_str);
+}
+
+void handle_client_connection(int client_socket_fd, 
+                              string backend_host, 
+                              string backend_port_str) 
+{
+
+}
+
+void handle_server_socket_event(struct epoll_data_handler* self, uint32_t events)
+{
+    struct server_socket_event_data* closure = (struct server_socket_event_data*) self->closure_event;
+    int client_socket_fd;
+    
+    while (activeSession) {
+        client_socket_fd = Accept(self->fd);
+        if (client_socket_fd == -1) {
+            if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                break;
+            } else {
+                perror("Could not accept");
+                exit(1);
+            }
+        }
+        cout << "accepted";
+
+        // handle_client_connection(client_socket_fd,
+        //                          closure->backend_addr,
+        //                          closure->backend_port_str);
+    }
+}
+
+int create_and_bind(string port)
+{
+    int socketfd = Socket();
+    Setsockopt(socketfd);
+    if (Bind(socketfd, stoi(port)) != 0)
+    {
+        cerr << "bind error" << endl;
+        close(socketfd);
+        exit(1);
+    }
+    return socketfd;
+}
+
+struct epoll_data_handler* startServer(
+    string port, string ws_hostid, string ws_port)
 {
     int epoll_fd;
-    epoll_init(&epoll_fd);
 
-    struct epoll_event_handler* server_socket_event_handler;
-    server_socket_event_handler = create_server_socket_handler(epoll_fd, port /*, ip, backend_port*/);
+    epoll_fd = create_and_bind(port);
+    make_socket_non_blocking(epoll_fd);
 
+    Listen(epoll_fd);
+
+    cout << "Listen on " << port << endl;
+
+    struct server_socket_event_data* closure = (server_socket_event_data*)malloc(sizeof(struct server_socket_event_data));
+    closure->backend_addr = ws_hostid;
+    closure->backend_port_str = ws_port;
+
+    struct epoll_data_handler* result = (epoll_data_handler*)malloc(sizeof(struct epoll_data_handler));
+    result->fd = epoll_fd;
+    result->handle = handle_server_socket_event;
+    result->closure_event = closure;
+
+    cout << "success";
+
+    epoll_add_handler(result, EPOLLIN | EPOLLET);
+
+    return result;
     
-
-    // struct epoll_event ev; 
-    // ev.data.fd = lsockfd;
-    // ev.events = EPOLLIN | EPOLLET;
-
-	// if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, lsockfd, &ev) < 0)
-    //     handleError("epoll_ctl error");
-
-    // struct epoll_event *pevents = (struct epoll_event*)calloc(MAXEVENTS, sizeof(struct epoll_event));
-
-    // while(activeSession){
-    //     int nready = epoll_wait(epoll_fd, pevents, MAXEVENTS, -1);
-    //     for(int i = 0; i < nready; i++){
-    //         if(lsockfd == pevents[i].data.fd){
-    //             /* we hava one or more incoming connections */
-    //             while (activeSession)
-    //             {
-    //                 socklen_t inlen = sizeof(cliaddr);
-    //                 struct sockaddr_in clientaddr;
-    //                 int infd = accept(lsockfd, (struct sockaddr *) &clientaddr, &inlen);
-    //                 if (infd < 0) {
-    //                     if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-    //                         /* we have processed all incoming connections */
-    //                         break;
-    //                     }
-    //                     handleError("accept");
-    //                     break;
-    //                 }
-
-    //                 rc = sock_set_non_blocking(infd);
-                    
-    //             }
-    //         }
-    //         else {
-    //             if( (pevents[i].events & EPOLLERR) ||
-    //                 (pevents[i].events & EPOLLHUP) ||
-    //               (!(pevents[i].events & EPOLLIN))){
-    //                 handleError("epoll_wait");
-    //                 close(pevents[i].data.fd);
-    //                 continue;
-	// 		    }
-
-    //             // Handle something
-    //         }
-    //     }
-    // }
 }
 
 void active_handler(/*int client_sock, shared_ptr<backend> ws*/)
@@ -152,9 +176,4 @@ char* get_cookie_serverid(char* msg)
 void set_cookie_serverid()
 {
 
-}
-
-void proxy_forward_request(char* msg)
-{
-    
 }
